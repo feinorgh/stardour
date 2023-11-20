@@ -1,0 +1,75 @@
+#!/bin/bash
+
+set -o errexit nounset
+
+printerr() {
+    printf "ERROR: %s\n" "$*" >&2
+}
+
+trap restore_settings EXIT
+
+ARDOUR_PATH=""
+SUDO_PATH="$(command -v sudo)" || { printerr "No sudo command found"; exit 1; }
+
+cpu_idle() {
+    local CPUPOWER STATE
+    STATE="${1-}"
+    if [ -z "$STATE" ]; then
+        printerr "No state given (enable|disable)"
+        return 1
+    fi
+    CPUPOWER="$(command -v cpupower)" || { printerr "No cpupower found"; return 1; }
+    if [[ "$STATE" == "enable" ]]; then
+        "$SUDO_PATH" "$CPUPOWER" --cpu all idle-set --enable-all
+        "$SUDO_PATH" "$CPUPOWER" frequency-set -g powersave
+    else
+        "$SUDO_PATH" "$CPUPOWER" --cpu all idle-set --disable-by-latency 2
+        "$SUDO_PATH" "$CPUPOWER" frequency-set -g performance
+    fi
+}
+
+max_user_freq() {
+    local STATE
+    STATE="${1-}"
+    if [ -z "$STATE" ]; then
+        printerr "No state given (set|restore)"
+        return 1
+    fi
+
+    if [[ "$STATE" == "set" ]]; then
+        SAVED_RTC_MAX_USER_FREQ="$(cat /sys/class/rtc/rtc0/max_user_freq)"
+        SAVED_HPET_MAX_USER_FREQ="$(cat /proc/sys/dev/hpet/max-user-freq)"
+        "$SUDO_PATH" sh -c 'echo 2048 > /sys/class/rtc/rtc0/max_user_freq'
+        "$SUDO_PATH" sh -c 'echo 2048 > /proc/sys/dev/hpet/max-user-freq'
+    else
+        "$SUDO_PATH" sh -c "echo $SAVED_RTC_MAX_USER_FREQ > /sys/class/rtc/rtc0/max_user_freq"
+        "$SUDO_PATH" sh -c "echo $SAVED_HPET_MAX_USER_FREQ > /proc/sys/dev/hpet/max-user-freq"
+    fi
+}
+
+get_ardour_fqpn() {
+    for BINARY in ardour7 ardour6 ardour; do
+        ARDOUR_PATH="$(command -v "$BINARY")"
+        if [ -x "$ARDOUR_PATH" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+restore_settings() {
+    cpu_idle "enable"
+}
+
+main() {
+    if get_ardour_fqpn; then
+        printf "Ardour path is '%s'\n" "$ARDOUR_PATH"
+    else
+        printerr "No ardour binary found"
+    fi
+    cpu_idle "disable"
+    "$ARDOUR_PATH"
+    restore_settings
+}
+
+main "$@"
