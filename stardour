@@ -6,7 +6,6 @@ printerr() {
     printf "ERROR: %s\n" "$*" >&2
 }
 
-trap restore_settings EXIT
 
 ARDOUR_PATH=""
 SUDO_PATH="$(command -v sudo)" || { printerr "No sudo command found"; exit 1; }
@@ -48,7 +47,7 @@ max_user_freq() {
 }
 
 get_ardour_fqpn() {
-    for BINARY in ardour7 ardour6 ardour; do
+    for BINARY in ardour8 ardour7 ardour6 ardour; do
         ARDOUR_PATH="$(command -v "$BINARY")"
         if [ -x "$ARDOUR_PATH" ]; then
             return 0
@@ -66,7 +65,9 @@ main() {
         printf "Ardour path is '%s'\n" "$ARDOUR_PATH"
     else
         printerr "No ardour binary found"
+        return 1
     fi
+    trap restore_settings EXIT
     cpu_idle "disable"
     "$ARDOUR_PATH"
     restore_settings
