@@ -47,7 +47,7 @@ max_user_freq() {
 }
 
 get_ardour_fqpn() {
-    for BINARY in ardour8 ardour7 ardour6 ardour; do
+    for BINARY in ardour9 ardour8 ardour7 ardour6 ardour; do
         ARDOUR_PATH="$(command -v "$BINARY")"
         if [ -x "$ARDOUR_PATH" ]; then
             return 0
@@ -69,7 +69,7 @@ main() {
     fi
     trap restore_settings EXIT
     cpu_idle "disable"
-    "$ARDOUR_PATH"
+    "$ARDOUR_PATH" || printerr "Could not start '$ARDOUR_PATH'"
     restore_settings
 }
 
